@@ -2,6 +2,10 @@
 把那該死的預覽聲音關掉，不然刷新都會有一堆毛  
 阿這份 Vibe 出來的，有 Bug 的話私訊 DC 或開 Issue，或是你想 Vibe 一個新的發 PR
 
+# 腳本
+- [script.js](./script.js) - 主要腳本，關掉預覽聲音
+- [volume.js](./volume.js) - 不直接禁音，單純把音量調到 50% (感謝青花魚提供)
+
 # 使用方式
 1. 安裝 [Tampermonkey](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=en)
 2. 按照 Tampermonkey 流程

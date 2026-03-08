@@ -1,7 +1,12 @@
-# About this Script
+# About this repo 
 Shutting down those damn preview sounds because it just auto turn on after every refresh  
 This script was "Vibed" into existence. If you find bugs, DM me on Discord, open issue, or just Vibe a new version and send PR  
 [中文 TW 版本 README](./README_zhTW.md)
+
+# Scripts
+- [script.js](./script.js) - Mute YouTube preview sound and main player sound by default
+- [volume.js](./volume.js) - Set YouTube volume to 50 percent by default, without muting the player directly (Thanks for @Mack68426)
+
 
 # How to Use
 1. Install Tampermonkey
