@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Mute Hover Previews
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Permanently mute auto-playing hover/inline previews on YouTube
+// @version      3.0
+// @description  Mute auto-playing hover/inline previews on YouTube without affecting watch/shorts volume
 // @match        https://www.youtube.com/*
 // @grant        none
 // @run-at       document-start
@@ -11,50 +11,52 @@
 (function () {
     'use strict';
 
-    // Force YouTube's inline player mute preference via localStorage
-    // YouTube uses this key to remember mute state for inline playback
-    function persistMutePreference() {
+    // Only force the inline-playback mute preference, NOT the player volume.
+    // yt-player-volume controls the volume for watch pages and Shorts 鈥?    // overwriting it causes the "volume resets to 0" bug.
+    function persistInlineMutePreference() {
         try {
-            // YouTube stores player preferences in yt-player-volume
-            const muteData = JSON.stringify({ data: '{"volume":0,"muted":true}', expiration: Date.now() + 2592000000, creation: Date.now() });
-            localStorage.setItem('yt-player-volume', muteData);
-
-            // Also set inline playback mute
             const inlineMute = JSON.stringify({ data: 'true', expiration: Date.now() + 2592000000, creation: Date.now() });
             localStorage.setItem('yt-player-inline-playback-muted', inlineMute);
         } catch (e) {}
     }
 
-    // Run immediately and on every navigation
-    persistMutePreference();
+    persistInlineMutePreference();
 
-    // Prevent YouTube from overwriting our mute preference
+    // Prevent YouTube from un-muting inline playback previews
     const origSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
         if (key === 'yt-player-inline-playback-muted') {
-            // Always force muted = true
             try {
                 const parsed = JSON.parse(value);
                 parsed.data = 'true';
                 value = JSON.stringify(parsed);
             } catch (e) {
-                // If not JSON, force it
                 value = JSON.stringify({ data: 'true', expiration: Date.now() + 2592000000, creation: Date.now() });
             }
         }
         return origSetItem.call(this, key, value);
     };
 
-    // Pages where hover previews play (not watch pages)
-    function isNonWatchPage() {
-        return location.pathname !== '/watch';
+    // Returns true when the user is on a page with hover/inline previews
+    // (i.e. NOT a /watch page and NOT a /shorts page)
+    function isPreviewPage() {
+        return location.pathname !== '/watch' && !location.pathname.startsWith('/shorts');
+    }
+
+    // Returns true if the element is a hover/inline preview video
+    // (not part of the main player, and we're on a preview page)
+    function isPreviewElement(el) {
+        if (!isPreviewPage()) return false;
+        if (el.closest('#movie_player')) return false;
+        if (el.closest('#shorts-player')) return false;
+        return true;
     }
 
     // Mute all preview video elements
     function mutePreviewVideos() {
-        if (!isNonWatchPage()) return;
+        if (!isPreviewPage()) return;
         document.querySelectorAll('video, audio').forEach(el => {
-            if (el.closest('#movie_player')) return;
+            if (el.closest('#movie_player') || el.closest('#shorts-player')) return;
             if (!el.muted) {
                 el.muted = true;
                 el.volume = 0;
@@ -62,22 +64,22 @@
         });
     }
 
-    // Intercept play() to mute before audio starts
+    // Intercept play() to mute before audio starts (only for previews)
     const origPlay = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
-        if (isNonWatchPage() && !this.closest('#movie_player')) {
+        if (isPreviewElement(this)) {
             this.muted = true;
             this.volume = 0;
         }
         return origPlay.apply(this, arguments);
     };
 
-    // Intercept volume setter
+    // Intercept volume setter (only block volume changes for previews)
     const volumeDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume');
     Object.defineProperty(HTMLMediaElement.prototype, 'volume', {
         get: volumeDesc.get,
         set: function (val) {
-            if (isNonWatchPage() && !this.closest('#movie_player')) {
+            if (isPreviewElement(this)) {
                 return volumeDesc.set.call(this, 0);
             }
             return volumeDesc.set.call(this, val);
@@ -85,12 +87,12 @@
         configurable: true,
     });
 
-    // Intercept muted setter
+    // Intercept muted setter (only force mute for previews)
     const mutedDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted');
     Object.defineProperty(HTMLMediaElement.prototype, 'muted', {
         get: mutedDesc.get,
         set: function (val) {
-            if (isNonWatchPage() && !this.closest('#movie_player')) {
+            if (isPreviewElement(this)) {
                 return mutedDesc.set.call(this, true);
             }
             return mutedDesc.set.call(this, val);
@@ -110,13 +112,13 @@
 
     // Re-apply on YouTube SPA navigation
     window.addEventListener('yt-navigate-finish', () => {
-        persistMutePreference();
+        persistInlineMutePreference();
         mutePreviewVideos();
     });
 
     // Fallback periodic check
     setInterval(() => {
-        persistMutePreference();
+        persistInlineMutePreference();
         mutePreviewVideos();
     }, 2000);
 })();
